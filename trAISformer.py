@@ -39,7 +39,10 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import Dataset, DataLoader
 
-import models, trainers, datasets, utils
+import models
+import trainers
+import datasets
+import utils
 from config_trAISformer import Config
 
 cf = Config()
@@ -53,12 +56,13 @@ if TB_LOG:
 utils.set_seed(42)
 torch.pi = torch.acos(torch.zeros(1)).item() * 2
 
+
 if __name__ == "__main__":
 
     device = cf.device
     init_seqlen = cf.init_seqlen
 
-    ## Logging
+    # Logging
     # ===============================
     if not os.path.isdir(cf.savedir):
         os.makedirs(cf.savedir)
@@ -67,7 +71,7 @@ if __name__ == "__main__":
         print('======= Directory to store trained models: ' + cf.savedir)
     utils.new_log(cf.savedir, "log")
 
-    ## Data
+    # Data
     # ===============================
     moving_threshold = 0.05
     l_pkl_filenames = [cf.trainset_name, cf.validset_name, cf.testset_name]
@@ -83,7 +87,8 @@ if __name__ == "__main__":
             except:
                 moving_idx = len(V["traj"]) - 1  # This track will be removed
             V["traj"] = V["traj"][moving_idx:, :]
-        Data[phase] = [x for x in l_pred_errors if not np.isnan(x["traj"]).any() and len(x["traj"]) > cf.min_seqlen]
+        Data[phase] = [x for x in l_pred_errors if not np.isnan(
+            x["traj"]).any() and len(x["traj"]) > cf.min_seqlen]
         print(len(l_pred_errors), len(Data[phase]))
         print(f"Length: {len(Data[phase])}")
         print("Creating pytorch dataset...")
@@ -106,27 +111,27 @@ if __name__ == "__main__":
                                    shuffle=shuffle)
     cf.final_tokens = 2 * len(aisdatasets["train"]) * cf.max_seqlen
 
-    ## Model
+    # Model
     # ===============================
     model = models.TrAISformer(cf, partition_model=None)
 
-    ## Trainer
+    # Trainer
     # ===============================
     trainer = trainers.Trainer(
         model, aisdatasets["train"], aisdatasets["valid"], cf, savedir=cf.savedir, device=cf.device, aisdls=aisdls, INIT_SEQLEN=init_seqlen)
 
-    ## Training
+    # Training
     # ===============================
     if cf.retrain:
         trainer.train()
 
-    ## Evaluation
+    # Evaluation
     # ===============================
     # Load the best model
     model.load_state_dict(torch.load(cf.ckpt_path))
 
     v_ranges = torch.tensor([2, 3, 0, 0]).to(cf.device)
-    v_roi_min = torch.tensor([model.lat_min, -7, 0, 0]).to(cf.device)
+    v_roi_min = torch.tensor([55.5, -7, 0, 0]).to(cf.device)
     max_seqlen = init_seqlen + 6 * 4
 
     model.eval()
@@ -137,7 +142,8 @@ if __name__ == "__main__":
             seqs_init = seqs[:, :init_seqlen, :].to(cf.device)
             masks = masks[:, :max_seqlen].to(cf.device)
             batchsize = seqs.shape[0]
-            error_ens = torch.zeros((batchsize, max_seqlen - cf.init_seqlen, cf.n_samples)).to(cf.device)
+            error_ens = torch.zeros(
+                (batchsize, max_seqlen - cf.init_seqlen, cf.n_samples)).to(cf.device)
             for i_sample in range(cf.n_samples):
                 preds = trainers.sample(model,
                                         seqs_init,
@@ -163,7 +169,7 @@ if __name__ == "__main__":
     pred_errors = min_errors.sum(dim=0) / m_masks.sum(dim=0)
     pred_errors = pred_errors.detach().cpu().numpy()
 
-    ## Plot
+    # Plot
     # ===============================
     plt.figure(figsize=(9, 6), dpi=150)
     v_times = np.arange(len(pred_errors)) / 6
@@ -173,19 +179,22 @@ if __name__ == "__main__":
     plt.plot(1, pred_errors[timestep], "o")
     plt.plot([1, 1], [0, pred_errors[timestep]], "r")
     plt.plot([0, 1], [pred_errors[timestep], pred_errors[timestep]], "r")
-    plt.text(1.12, pred_errors[timestep] - 0.5, "{:.4f}".format(pred_errors[timestep]), fontsize=10)
+    plt.text(1.12, pred_errors[timestep] - 0.5,
+             "{:.4f}".format(pred_errors[timestep]), fontsize=10)
 
     timestep = 12
     plt.plot(2, pred_errors[timestep], "o")
     plt.plot([2, 2], [0, pred_errors[timestep]], "r")
     plt.plot([0, 2], [pred_errors[timestep], pred_errors[timestep]], "r")
-    plt.text(2.12, pred_errors[timestep] - 0.5, "{:.4f}".format(pred_errors[timestep]), fontsize=10)
+    plt.text(2.12, pred_errors[timestep] - 0.5,
+             "{:.4f}".format(pred_errors[timestep]), fontsize=10)
 
     timestep = 18
     plt.plot(3, pred_errors[timestep], "o")
     plt.plot([3, 3], [0, pred_errors[timestep]], "r")
     plt.plot([0, 3], [pred_errors[timestep], pred_errors[timestep]], "r")
-    plt.text(3.12, pred_errors[timestep] - 0.5, "{:.4f}".format(pred_errors[timestep]), fontsize=10)
+    plt.text(3.12, pred_errors[timestep] - 0.5,
+             "{:.4f}".format(pred_errors[timestep]), fontsize=10)
     plt.xlabel("Time (hours)")
     plt.ylabel("Prediction errors (km)")
     plt.xlim([0, 12])

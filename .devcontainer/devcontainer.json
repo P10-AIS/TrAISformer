@@ -1,0 +1,24 @@
+{
+    "name": "trAISformer DevContainer",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vsliveshare.vsliveshare",
+                "ReprEng.csv",
+                "ms-python.vscode-python-envs",
+                "ms-python.vscode-pylance",
+                "ms-python.python",
+                "ms-python.debugpy",
+                "ms-python.autopep8"
+            ]
+        }
+    },
+    "mounts": [
+        "source=${localWorkspaceFolder}/data,target=/workspaces/data,type=bind",
+        "source=${localWorkspaceFolder}/predictions,target=/workspaces/predictions,type=bind"
+    ]
+}
