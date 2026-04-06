@@ -1,10 +1,16 @@
+name: base
 channels:
-  - defaults
+  - pytorch
   - conda-forge
+  - defaults
 dependencies:
-  - numpy
-  - pandas
-  - scipy
-  - scikit-learn
+  - python=3.10
+  - pytorch
+  - torchvision
+  - tqdm
   - matplotlib
-  - jupyterlab
+  - ipykernel
+  - pip
+  - pip:
+      - tqdm
+      - matplotlib

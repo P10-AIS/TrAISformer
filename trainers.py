@@ -55,7 +55,8 @@ def sample(model,
     max_seqlen = model.get_max_seqlen()
     model.eval()
     for k in range(steps):
-        seqs_cond = seqs if seqs.size(1) <= max_seqlen else seqs[:, -max_seqlen:]  # crop context if needed
+        seqs_cond = seqs if seqs.size(
+            1) <= max_seqlen else seqs[:, -max_seqlen:]  # crop context if needed
 
         # logits.shape: (batch_size, seq_len, data_size)
         logits, _ = model(seqs_cond)
@@ -65,14 +66,18 @@ def sample(model,
         logits = logits[:, -1, :] / temperature  # (batch_size, data_size)
 
         lat_logits, lon_logits, sog_logits, cog_logits = \
-            torch.split(logits, (model.lat_size, model.lon_size, model.sog_size, model.cog_size), dim=-1)
+            torch.split(logits, (model.lat_size, model.lon_size,
+                        model.sog_size, model.cog_size), dim=-1)
 
         # optionally crop probabilities to only the top k options
         if sample_mode in ("pos_vicinity",):
             idxs, idxs_uniform = model.to_indexes(seqs_cond[:, -1:, :])
-            lat_idxs, lon_idxs = idxs_uniform[:, 0, 0:1], idxs_uniform[:, 0, 1:2]
-            lat_logits = utils.top_k_nearest_idx(lat_logits, lat_idxs, r_vicinity)
-            lon_logits = utils.top_k_nearest_idx(lon_logits, lon_idxs, r_vicinity)
+            lat_idxs, lon_idxs = idxs_uniform[:,
+                                              0, 0:1], idxs_uniform[:, 0, 1:2]
+            lat_logits = utils.top_k_nearest_idx(
+                lat_logits, lat_idxs, r_vicinity)
+            lon_logits = utils.top_k_nearest_idx(
+                lon_logits, lon_idxs, r_vicinity)
 
         if top_k is not None:
             lat_logits = utils.top_k_logits(lat_logits, top_k)
@@ -88,7 +93,8 @@ def sample(model,
 
         # sample from the distribution or take the most likely
         if sample:
-            lat_ix = torch.multinomial(lat_probs, num_samples=1)  # (batch_size, 1)
+            lat_ix = torch.multinomial(
+                lat_probs, num_samples=1)  # (batch_size, 1)
             lon_ix = torch.multinomial(lon_probs, num_samples=1)
             sog_ix = torch.multinomial(sog_probs, num_samples=1)
             cog_ix = torch.multinomial(cog_probs, num_samples=1)
@@ -118,7 +124,8 @@ class TrainerConfig:
     weight_decay = 0.1  # only applied on matmul weights
     # learning rate decay params: linear warmup followed by cosine decay to 10% of original
     lr_decay = False
-    warmup_tokens = 375e6  # these two numbers come from the GPT-3 paper, but may not be good defaults elsewhere
+    # these two numbers come from the GPT-3 paper, but may not be good defaults elsewhere
+    warmup_tokens = 375e6
     final_tokens = 260e9  # (at what point we reach 10% of original LR)
     # checkpoint settings
     ckpt_path = None
@@ -145,9 +152,11 @@ class Trainer:
 
     def save_checkpoint(self, best_epoch):
         # DataParallel wrappers keep raw model object in .module attribute
-        raw_model = self.model.module if hasattr(self.model, "module") else self.model
+        raw_model = self.model.module if hasattr(
+            self.model, "module") else self.model
         #         logging.info("saving %s", self.config.ckpt_path)
-        logging.info(f"Best epoch: {best_epoch:03d}, saving model to {self.config.ckpt_path}")
+        logging.info(
+            f"Best epoch: {best_epoch:03d}, saving model to {self.config.ckpt_path}")
         torch.save(raw_model.state_dict(), self.config.ckpt_path)
 
     def train(self):
@@ -169,7 +178,8 @@ class Trainer:
 
             losses = []
             n_batches = len(loader)
-            pbar = tqdm(enumerate(loader), total=len(loader)) if is_train else enumerate(loader)
+            pbar = tqdm(enumerate(loader), total=len(loader)
+                        ) if is_train else enumerate(loader)
             d_loss, d_reg_loss, d_n = 0, 0, 0
             for it, (seqs, masks, seqlens, mmsis, time_starts) in pbar:
 
@@ -185,7 +195,8 @@ class Trainer:
                                                          with_targets=True,
                                                          return_loss_tuple=return_loss_tuple)
                     else:
-                        logits, loss = model(seqs, masks=masks, with_targets=True)
+                        logits, loss = model(
+                            seqs, masks=masks, with_targets=True)
                     loss = loss.mean()  # collapse all losses if they are scattered on multiple gpus
                     losses.append(loss.item())
 
@@ -200,21 +211,24 @@ class Trainer:
                     # backprop and update the parameters
                     model.zero_grad()
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), config.grad_norm_clip)
                     optimizer.step()
 
                     # decay the learning rate based on our progress
                     if config.lr_decay:
                         self.tokens += (
-                                seqs >= 0).sum()  # number of tokens processed this step (i.e. label is not -100)
+                            seqs >= 0).sum()  # number of tokens processed this step (i.e. label is not -100)
                         if self.tokens < config.warmup_tokens:
                             # linear warmup
-                            lr_mult = float(self.tokens) / float(max(1, config.warmup_tokens))
+                            lr_mult = float(self.tokens) / \
+                                float(max(1, config.warmup_tokens))
                         else:
                             # cosine learning rate decay
                             progress = float(self.tokens - config.warmup_tokens) / float(
                                 max(1, config.final_tokens - config.warmup_tokens))
-                            lr_mult = max(0.1, 0.5 * (1.0 + math.cos(math.pi * progress)))
+                            lr_mult = max(
+                                0.1, 0.5 * (1.0 + math.cos(math.pi * progress)))
                         lr = config.learning_rate * lr_mult
                         for param_group in optimizer.param_groups:
                             param_group['lr'] = lr
@@ -222,7 +236,8 @@ class Trainer:
                         lr = config.learning_rate
 
                     # report progress
-                    pbar.set_description(f"epoch {epoch + 1} iter {it}: loss {loss.item():.5f}. lr {lr:e}")
+                    pbar.set_description(
+                        f"epoch {epoch + 1} iter {it}: loss {loss.item():.5f}. lr {lr:e}")
 
                     # tb logging
                     if TB_LOG:
@@ -234,24 +249,31 @@ class Trainer:
                                       epoch * n_batches + it)
 
                         for name, params in model.head.named_parameters():
-                            tb.add_histogram(f"head.{name}", params, epoch * n_batches + it)
-                            tb.add_histogram(f"head.{name}.grad", params.grad, epoch * n_batches + it)
+                            tb.add_histogram(
+                                f"head.{name}", params, epoch * n_batches + it)
+                            tb.add_histogram(
+                                f"head.{name}.grad", params.grad, epoch * n_batches + it)
                         if model.mode in ("gridcont_real",):
                             for name, params in model.res_pred.named_parameters():
-                                tb.add_histogram(f"res_pred.{name}", params, epoch * n_batches + it)
-                                tb.add_histogram(f"res_pred.{name}.grad", params.grad, epoch * n_batches + it)
+                                tb.add_histogram(
+                                    f"res_pred.{name}", params, epoch * n_batches + it)
+                                tb.add_histogram(
+                                    f"res_pred.{name}.grad", params.grad, epoch * n_batches + it)
 
             if is_train:
                 if return_loss_tuple:
                     logging.info(
                         f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}, {d_reg_loss / d_n:.5f}, lr {lr:e}.")
                 else:
-                    logging.info(f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}, lr {lr:e}.")
+                    logging.info(
+                        f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}, lr {lr:e}.")
             else:
                 if return_loss_tuple:
-                    logging.info(f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}.")
+                    logging.info(
+                        f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}.")
                 else:
-                    logging.info(f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}.")
+                    logging.info(
+                        f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}.")
 
             if not is_train:
                 test_loss = float(np.mean(losses))
@@ -275,11 +297,13 @@ class Trainer:
                 best_epoch = epoch
                 self.save_checkpoint(best_epoch + 1)
 
-            ## SAMPLE AND PLOT
+            # SAMPLE AND PLOT
             # ==========================================================================================
             # ==========================================================================================
-            raw_model = model.module if hasattr(self.model, "module") else model
-            seqs, masks, seqlens, mmsis, time_starts = iter(aisdls["test"]).next()
+            raw_model = model.module if hasattr(
+                self.model, "module") else model
+            seqs, masks, seqlens, mmsis, time_starts = next(
+                iter(aisdls["test"]))
             n_plots = 7
             init_seqlen = INIT_SEQLEN
             seqs_init = seqs[:n_plots, :init_seqlen, :].to(self.device)
@@ -303,18 +327,25 @@ class Trainer:
                     seqlen = seqlens[idx].item()
                 except:
                     continue
-                plt.plot(inputs_np[idx][:init_seqlen, 1], inputs_np[idx][:init_seqlen, 0], color=c)
-                plt.plot(inputs_np[idx][:init_seqlen, 1], inputs_np[idx][:init_seqlen, 0], "o", markersize=3, color=c)
-                plt.plot(inputs_np[idx][:seqlen, 1], inputs_np[idx][:seqlen, 0], linestyle="-.", color=c)
-                plt.plot(preds_np[idx][init_seqlen:, 1], preds_np[idx][init_seqlen:, 0], "x", markersize=4, color=c)
+                plt.plot(inputs_np[idx][:init_seqlen, 1],
+                         inputs_np[idx][:init_seqlen, 0], color=c)
+                plt.plot(inputs_np[idx][:init_seqlen, 1], inputs_np[idx]
+                         [:init_seqlen, 0], "o", markersize=3, color=c)
+                plt.plot(inputs_np[idx][:seqlen, 1], inputs_np[idx]
+                         [:seqlen, 0], linestyle="-.", color=c)
+                plt.plot(preds_np[idx][init_seqlen:, 1], preds_np[idx]
+                         [init_seqlen:, 0], "x", markersize=4, color=c)
             plt.xlim([-0.05, 1.05])
             plt.ylim([-0.05, 1.05])
             plt.savefig(img_path, dpi=150)
             plt.close()
 
         # Final state
-        raw_model = self.model.module if hasattr(self.model, "module") else self.model
+        raw_model = self.model.module if hasattr(
+            self.model, "module") else self.model
         #         logging.info("saving %s", self.config.ckpt_path)
-        logging.info(f"Last epoch: {epoch:03d}, saving model to {self.config.ckpt_path}")
-        save_path = self.config.ckpt_path.replace("model.pt", f"model_{epoch + 1:03d}.pt")
+        logging.info(
+            f"Last epoch: {epoch:03d}, saving model to {self.config.ckpt_path}")
+        save_path = self.config.ckpt_path.replace(
+            "model.pt", f"model_{epoch + 1:03d}.pt")
         torch.save(raw_model.state_dict(), save_path)

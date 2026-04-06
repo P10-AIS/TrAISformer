@@ -17,6 +17,13 @@
             ]
         }
     },
+    "runArgs": [
+        "--shm-size",
+        "8gb"
+    ],
+    "hostRequirements": {
+        "gpu": "optional"
+    },
     "mounts": [
         "source=${localWorkspaceFolder}/data,target=/workspaces/data,type=bind",
         "source=${localWorkspaceFolder}/predictions,target=/workspaces/predictions,type=bind"
