@@ -39,6 +39,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import Dataset, DataLoader
 
+from data_handler import ROI
 import models
 import trainers
 import datasets
@@ -111,14 +112,25 @@ if __name__ == "__main__":
                                    shuffle=shuffle)
     cf.final_tokens = 2 * len(aisdatasets["train"]) * cf.max_seqlen
 
+    roi = ROI(
+        lat_min=55.5,
+        lat_max=58,
+        lon_min=-7,
+        lon_max=3,
+        sog_min=0,
+        sog_max=20,
+        cog_min=0,
+        cog_max=360
+    )
+
     # Model
     # ===============================
-    model = models.TrAISformer(cf, partition_model=None)
+    model = models.TrAISformer(cf, roi, partition_model=None)
 
     # Trainer
     # ===============================
     trainer = trainers.Trainer(
-        model, aisdatasets["train"], aisdatasets["valid"], cf, savedir=cf.savedir, device=cf.device, aisdls=aisdls, INIT_SEQLEN=init_seqlen)
+        model, aisdatasets["train"], aisdatasets["valid"], cf, savedir=cf.savedir, device=cf.device, aisdls=aisdls, INIT_SEQLEN=init_seqlen, ckpt_path=cf.ckpt_path)
 
     # Training
     # ===============================
@@ -128,10 +140,18 @@ if __name__ == "__main__":
     # Evaluation
     # ===============================
     # Load the best model
-    model.load_state_dict(torch.load(cf.ckpt_path))
+    print(f"Loading checkpoint from {cf.ckpt_path}...")
+    checkpoint = torch.load(cf.ckpt_path, map_location=device)
+    train_config = Config(**checkpoint['config'])
+    roi = ROI(**checkpoint['roi'])
+    model = models.TrAISformer(train_config, roi, partition_model=None)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(cf.device)
+    model.eval()
 
     v_ranges = torch.tensor([2, 3, 0, 0]).to(cf.device)
-    v_roi_min = torch.tensor([55.5, -7, 0, 0]).to(cf.device)
+    v_roi_min = torch.tensor(
+        [roi.lat_min, roi.lon_min, roi.sog_min, roi.cog_min]).to(cf.device)
     max_seqlen = init_seqlen + 6 * 4
 
     model.eval()

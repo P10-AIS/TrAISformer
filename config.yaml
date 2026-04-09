@@ -1,5 +1,3 @@
+name: "trAISformer"
 device: "cpu"
-path_data_train: "data/train.npz"
-path_data_validation: "data/validation.npz"
-path_data_test: "data/test.npz"
 ckpt_path: "models/model.pt"

@@ -15,7 +15,9 @@ class ROI:
     cog_max: float
 
 
-def load_data(data_path, interval_seconds, min_seqlen):
+def load_data(splits: list[float], data_path: str, interval_seconds: int, min_seqlen: int):
+    assert sum(splits) == 1.0, "Splits must sum to 1.0"
+
     print(f"Loading {data_path}...")
 
     with np.load(data_path, allow_pickle=True) as data:
@@ -74,8 +76,15 @@ def load_data(data_path, interval_seconds, min_seqlen):
             "traj": normalized_data[i]
         })
 
+    splitted_data = []
+    start_idx = 0
+    for split in splits:
+        end_idx = int(split * len(final_data))
+        splitted_data.append(final_data[start_idx:end_idx])
+        start_idx = end_idx
+
     print(f"Successfully loaded {len(formatted_data)} trajectories.")
-    return final_data, roi
+    return splitted_data, roi
 
 
 def _interpolate_trajectory(segment, interval_seconds=600):

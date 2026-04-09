@@ -19,10 +19,12 @@ References:
     https://github.com/karpathy/minGPT
 """
 
+from dataclasses import asdict
 import os
 import math
 import logging
 
+import mlflow
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
@@ -128,7 +130,6 @@ class TrainerConfig:
     warmup_tokens = 375e6
     final_tokens = 260e9  # (at what point we reach 10% of original LR)
     # checkpoint settings
-    ckpt_path = None
     num_workers = 0  # for DataLoader
 
     def __init__(self, **kwargs):
@@ -139,11 +140,13 @@ class TrainerConfig:
 class Trainer:
 
     def __init__(self, model, train_dataset, test_dataset, config, savedir=None, device=torch.device("cpu"), aisdls={},
-                 INIT_SEQLEN=0):
+                 INIT_SEQLEN=0, mlflow_active=False, ckpt_path=None):
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
         self.config = config
         self.savedir = savedir
+        self.mlflow_active = mlflow_active
+        self.ckpt_path = ckpt_path
 
         self.device = device
         self.model = model.to(device)
@@ -151,13 +154,18 @@ class Trainer:
         self.INIT_SEQLEN = INIT_SEQLEN
 
     def save_checkpoint(self, best_epoch):
-        # DataParallel wrappers keep raw model object in .module attribute
         raw_model = self.model.module if hasattr(
             self.model, "module") else self.model
-        #         logging.info("saving %s", self.config.ckpt_path)
+
+        checkpoint = {
+            'model_state_dict': raw_model.state_dict(),
+            'config': asdict(self.config),
+            'roi': asdict(self.model.roi)
+        }
+
         logging.info(
-            f"Best epoch: {best_epoch:03d}, saving model to {self.config.ckpt_path}")
-        torch.save(raw_model.state_dict(), self.config.ckpt_path)
+            f"Best epoch: {best_epoch:03d}, saving model to {self.ckpt_path}")
+        torch.save(checkpoint, self.ckpt_path)
 
     def train(self):
         model, config, aisdls, INIT_SEQLEN, = self.model, self.config, self.aisdls, self.INIT_SEQLEN
@@ -260,6 +268,12 @@ class Trainer:
                                 tb.add_histogram(
                                     f"res_pred.{name}.grad", params.grad, epoch * n_batches + it)
 
+                    if self.mlflow_active:
+                        mlflow.log_metrics({
+                            "batch_train_loss": loss.item(),
+                            "learning_rate": lr
+                        }, step=epoch * n_batches + it)
+
             if is_train:
                 if return_loss_tuple:
                     logging.info(
@@ -275,9 +289,16 @@ class Trainer:
                     logging.info(
                         f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}.")
 
+            if is_train:
+                epoch_train_loss = d_loss / d_n
+                if self.mlflow_active:
+                    mlflow.log_metric("epoch_train_loss",
+                                      epoch_train_loss, step=epoch)
+
             if not is_train:
                 test_loss = float(np.mean(losses))
-                #                 logging.info("test loss: %f", test_loss)
+                if self.mlflow_active:
+                    mlflow.log_metric("epoch_val_loss", test_loss, step=epoch)
                 return test_loss
 
         best_loss = float('inf')
@@ -292,7 +313,7 @@ class Trainer:
 
             # supports early stopping based on the test loss, or just save always if no test set is provided
             good_model = self.test_dataset is None or test_loss < best_loss
-            if self.config.ckpt_path is not None and good_model:
+            if self.ckpt_path is not None and good_model:
                 best_loss = test_loss
                 best_epoch = epoch
                 self.save_checkpoint(best_epoch + 1)
@@ -340,12 +361,15 @@ class Trainer:
             plt.savefig(img_path, dpi=150)
             plt.close()
 
+            if self.mlflow_active:
+                mlflow.log_artifact(img_path, artifact_path="trajectory_plots")
+
         # Final state
         raw_model = self.model.module if hasattr(
             self.model, "module") else self.model
-        #         logging.info("saving %s", self.config.ckpt_path)
+        #         logging.info("saving %s", self.ckpt_path)
         logging.info(
-            f"Last epoch: {epoch:03d}, saving model to {self.config.ckpt_path}")
-        save_path = self.config.ckpt_path.replace(
+            f"Last epoch: {epoch:03d}, saving model to {self.ckpt_path}")
+        save_path = self.ckpt_path.replace(
             "model.pt", f"model_{epoch + 1:03d}.pt")
         torch.save(raw_model.state_dict(), save_path)

@@ -28,6 +28,7 @@ import pdb
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from data_handler import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +106,9 @@ class Block(nn.Module):
 class TrAISformer(nn.Module):
     """Transformer for AIS trajectories."""
 
-    def __init__(self, config, partition_model=None):
+    def __init__(self, config, roi: ROI, partition_model=None):
         super().__init__()
-
+        self.roi = roi
         self.lat_size = config.lat_size
         self.lon_size = config.lon_size
         self.sog_size = config.sog_size
