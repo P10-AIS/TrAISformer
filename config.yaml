@@ -1,3 +1,0 @@
-name: "trAISformer"
-device: "cpu"
-ckpt_path: "models/model.pt"

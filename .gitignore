@@ -2,3 +2,7 @@ results
 predictions
 **/*.npz
 figures
+Predictions
+Data
+Configs
+Trained

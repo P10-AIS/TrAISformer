@@ -24,7 +24,6 @@ import os
 import math
 import logging
 
-import mlflow
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,7 +51,7 @@ def sample(model,
            top_k=None):
     """
     Take a conditoning sequence of AIS observations seq and predict the next observation,
-    feed the predictions back into the model each time. 
+    feed the predictions back into the model each time.
     """
     max_seqlen = model.get_max_seqlen()
     model.eval()
@@ -140,12 +139,11 @@ class TrainerConfig:
 class Trainer:
 
     def __init__(self, model, train_dataset, test_dataset, config, savedir=None, device=torch.device("cpu"), aisdls={},
-                 INIT_SEQLEN=0, mlflow_active=False, ckpt_path=None):
+                 INIT_SEQLEN=0, ckpt_path=None):
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
         self.config = config
         self.savedir = savedir
-        self.mlflow_active = mlflow_active
         self.ckpt_path = ckpt_path
 
         self.device = device
@@ -165,6 +163,8 @@ class Trainer:
 
         logging.info(
             f"Best epoch: {best_epoch:03d}, saving model to {self.ckpt_path}")
+        print(
+            f"✓ Saving best checkpoint at epoch {best_epoch}, val_loss={self.config}")
         torch.save(checkpoint, self.ckpt_path)
 
     def train(self):
@@ -268,12 +268,6 @@ class Trainer:
                                 tb.add_histogram(
                                     f"res_pred.{name}.grad", params.grad, epoch * n_batches + it)
 
-                    if self.mlflow_active:
-                        mlflow.log_metrics({
-                            "batch_train_loss": loss.item(),
-                            "learning_rate": lr
-                        }, step=epoch * n_batches + it)
-
             if is_train:
                 if return_loss_tuple:
                     logging.info(
@@ -289,16 +283,8 @@ class Trainer:
                     logging.info(
                         f"{split}, epoch {epoch + 1}, loss {d_loss / d_n:.5f}.")
 
-            if is_train:
-                epoch_train_loss = d_loss / d_n
-                if self.mlflow_active:
-                    mlflow.log_metric("epoch_train_loss",
-                                      epoch_train_loss, step=epoch)
-
             if not is_train:
                 test_loss = float(np.mean(losses))
-                if self.mlflow_active:
-                    mlflow.log_metric("epoch_val_loss", test_loss, step=epoch)
                 return test_loss
 
         best_loss = float('inf')
@@ -361,15 +347,10 @@ class Trainer:
             plt.savefig(img_path, dpi=150)
             plt.close()
 
-            if self.mlflow_active:
-                mlflow.log_artifact(img_path, artifact_path="trajectory_plots")
-
         # Final state
         raw_model = self.model.module if hasattr(
             self.model, "module") else self.model
-        #         logging.info("saving %s", self.ckpt_path)
+        save_path = self.ckpt_path.replace(".pt", f"_final_{epoch + 1:03d}.pt")
         logging.info(
-            f"Last epoch: {epoch:03d}, saving model to {self.ckpt_path}")
-        save_path = self.ckpt_path.replace(
-            "model.pt", f"model_{epoch + 1:03d}.pt")
+            f"Last epoch: {epoch:03d}, saving model to {save_path}")
         torch.save(raw_model.state_dict(), save_path)

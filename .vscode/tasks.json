@@ -1,0 +1,80 @@
+{
+    "version": "2.0.0",
+    "inputs": [
+        {
+            "id": "gpu",
+            "type": "pickString",
+            "description": "Which GPU?",
+            "options": [
+                "0",
+                "1"
+            ],
+            "default": "0"
+        }
+    ],
+    "tasks": [
+        {
+            "label": "Train model",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-u",
+                "-m",
+                "experiment",
+                "train",
+                "-dsp",
+                "Data/DatasetTraj/label-danish-december.npz",
+                "-cfg",
+                "Configs/train.yaml"
+            ],
+            "options": {
+                "env": {
+                    "CUDA_VISIBLE_DEVICES": "${input:gpu}"
+                }
+            },
+            "runOptions": {
+                "instanceLimit": 2
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Test model",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-u",
+                "-m",
+                "experiment",
+                "test",
+                "-dsp",
+                "Data/DatasetTraj/aisdk-2024-03-02-CleanerDanish-min_traj_duration_m=240-max_traj_duration_m=360-min_sog_mps=2.0-max_sog_mps=30.0-max_time_gap=200.0-min_traj_gap_distance_m=10-max_traj_gap_distance_m=5000.npz",
+                "-mp",
+                "Trained/trAISformer.pt",
+                "-cfg",
+                "Configs/test.yaml"
+            ],
+            "options": {
+                "env": {
+                    "CUDA_VISIBLE_DEVICES": "${input:gpu}"
+                }
+            },
+            "runOptions": {
+                "instanceLimit": 2
+            },
+            "group": "test",
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            }
+        }
+    ]
+}

@@ -15,7 +15,7 @@ class ROI:
     cog_max: float
 
 
-def load_data(splits: list[float], data_path: str, interval_seconds: int, min_seqlen: int):
+def load_data(splits: list[float], data_path: str, interval_seconds: int, min_seqlen: int, roi: ROI | None = None):
     assert sum(splits) == 1.0, "Splits must sum to 1.0"
 
     print(f"Loading {data_path}...")
@@ -38,7 +38,7 @@ def load_data(splits: list[float], data_path: str, interval_seconds: int, min_se
             full_res_segment, interval_seconds=interval_seconds)
 
         if len(segment) < min_seqlen:
-            continue
+            raise ValueError("Segment is shorter than minimum sequence length")
 
         standardized_traj = np.stack([
             segment[:, 1],  # LAT
@@ -51,7 +51,8 @@ def load_data(splits: list[float], data_path: str, interval_seconds: int, min_se
         formatted_data.append(standardized_traj)
 
     normalized_data = []
-    roi = _get_metadata(formatted_data)
+    if roi is None:
+        roi = _get_metadata(formatted_data)
 
     for traj in formatted_data:
         lat_norm = (traj[:, 0] - roi.lat_min) / (roi.lat_max - roi.lat_min)
@@ -79,7 +80,7 @@ def load_data(splits: list[float], data_path: str, interval_seconds: int, min_se
     splitted_data = []
     start_idx = 0
     for split in splits:
-        end_idx = int(split * len(final_data))
+        end_idx = start_idx + int(split * len(final_data))
         splitted_data.append(final_data[start_idx:end_idx])
         start_idx = end_idx
 

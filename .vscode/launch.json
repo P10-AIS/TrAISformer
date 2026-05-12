@@ -8,9 +8,15 @@
             "name": "Train",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",
+            "program": "experiment.py",
             "console": "integratedTerminal",
-            "args": "train --config config.yaml"
+            "args": [
+                "train",
+                "-dsp",
+                "Data/DatasetTraj/label-danish-december.npz",
+                "-cfg",
+                "Configs/train.yaml"
+            ]
         },
         {
             "name": "trAISformer",
